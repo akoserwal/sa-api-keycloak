@@ -1,0 +1,479 @@
+openapi: 3.0.1
+info:
+  contact:
+    email: it-user-team-list@redhat.com
+  description: This is the API documentation for Service Accounts
+  title: Service Accounts API Documentation
+  version: 5.0.19
+servers:
+- description: Production server
+  url: https://sso.redhat.com/auth/realms/redhat-external
+- description: Stage server
+  url: https://sso.stage.redhat.com/auth/realms/redhat-external
+- description: Local development
+  url: http://localhost:8081/auth/realms/redhat-external
+security:
+- authFlow: []
+- serviceAccounts: []
+- bearerAuth: []
+paths:
+  /apis/service_accounts/v1:
+    get:
+      description: Returns a list of service accounts created by a user. User information
+        is obtained from the bearer token. The list is paginated with starting index
+        as 'first' and page size as 'max'.
+      operationId: getServiceAccounts
+      parameters:
+      - explode: true
+        in: query
+        name: first
+        required: false
+        schema:
+          default: 0
+          format: int32
+          minimum: 0
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: max
+        required: false
+        schema:
+          default: 20
+          format: int32
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: clientId
+        required: false
+        schema:
+          items:
+            type: string
+          maxItems: 10
+          minItems: 0
+          type: array
+          uniqueItems: true
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ServiceAccountData'
+                type: array
+          description: OK
+          links:
+            getNextPage:
+              description: link to the next page of service accounts
+              operationId: getServiceAccounts
+        "400":
+          content:
+            application/json:
+              examples:
+                Bad Request Example:
+                  $ref: '#/components/examples/400FieldValidationError'
+              schema:
+                $ref: '#/components/schemas/ValidationExceptionData'
+          description: Bad Request if page filters are invalid
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: List all service accounts
+      tags:
+      - service_accounts
+    post:
+      description: Create a service account. Created service account is associated
+        with the user defined in the bearer token.
+      operationId: createServiceAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccountCreateRequestData'
+        description: '''name'' and ''description'' of the service account'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAccountData'
+          description: OK
+        "400":
+          content:
+            application/json:
+              examples:
+                Bad Request Example:
+                  $ref: '#/components/examples/400FieldValidationError'
+              schema:
+                $ref: '#/components/schemas/ValidationExceptionData'
+          description: All fields did not pass validation.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              examples:
+                service account threshold exceeded:
+                  $ref: '#/components/examples/403ServiceAccountThresholdExceeded'
+              schema:
+                $ref: '#/components/schemas/RedHatErrorRepresentation'
+          description: Exceeded account level threshold limits for creating service
+            accounts.
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: Create service account
+      tags:
+      - service_accounts
+  /apis/service_accounts/v1/{id}:
+    delete:
+      description: Delete service account by id. Throws not found exception if the
+        service account is not found or the user does not have access to this service
+        account
+      operationId: deleteServiceAccount
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json: {}
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              examples:
+                service account not found:
+                  $ref: '#/components/examples/404ServiceAccountNotFound'
+              schema:
+                $ref: '#/components/schemas/RedHatErrorRepresentation'
+          description: Not Found
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: Delete service account by id
+      tags:
+      - service_accounts
+    get:
+      description: Returns service account by id. Throws not found exception if the
+        service account is not found or the user does not have access to this service
+        account
+      operationId: getServiceAccount
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAccountData'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              examples:
+                service account not found:
+                  $ref: '#/components/examples/404ServiceAccountNotFound'
+              schema:
+                $ref: '#/components/schemas/RedHatErrorRepresentation'
+          description: Not Found
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: Get service account by id
+      tags:
+      - service_accounts
+    patch:
+      description: Update a service account by id.
+      operationId: updateServiceAccount
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccountRequestData'
+        description: '''name'' and ''description'' of the service account'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAccountData'
+          description: OK
+        "400":
+          content:
+            application/json:
+              examples:
+                Bad Request Example:
+                  $ref: '#/components/examples/400FieldValidationError'
+              schema:
+                $ref: '#/components/schemas/ValidationExceptionData'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              examples:
+                service account not found:
+                  $ref: '#/components/examples/404ServiceAccountNotFound'
+              schema:
+                $ref: '#/components/schemas/RedHatErrorRepresentation'
+          description: Not Found
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: Update service account
+      tags:
+      - service_accounts
+  /apis/service_accounts/v1/{id}/resetSecret:
+    post:
+      description: Reset service account secret by id . Throws not found exception
+        if the service account is not found or the user does not have access to this
+        service account
+      operationId: resetServiceAccountSecret
+      parameters:
+      - explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAccountData'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              examples:
+                service account not found:
+                  $ref: '#/components/examples/404ServiceAccountNotFound'
+              schema:
+                $ref: '#/components/schemas/RedHatErrorRepresentation'
+          description: Not Found
+      security:
+      - authFlow:
+        - api.iam.service_accounts
+      - serviceAccounts:
+        - api.iam.service_accounts
+      summary: Reset service account secret by id
+      tags:
+      - service_accounts
+components:
+  examples:
+    "400FieldValidationError":
+      value:
+        error: invalid_field
+        error_description: Request failed field validation
+        fields:
+          name: description of constraint which failed
+    "404ServiceAccountNotFound":
+      value:
+        error: service_account_not_found
+        error_description: Service account 1234 not found.
+    "403ServiceAccountThresholdExceeded":
+      value:
+        error: service_account_limit_exceeded
+        error_description: Cannot create more than 50 service accounts per account.
+  responses:
+    "401":
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: Unauthorized
+    "403":
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: Forbidden
+    "500":
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: Internal Server Error
+  schemas:
+    Error:
+      properties:
+        error:
+          description: The cause of the Error.
+          type: string
+      required:
+      - error
+      type: object
+    ServiceAccountData:
+      example:
+        createdAt: 0
+        clientId: clientId
+        createdBy: createdBy
+        name: name
+        description: description
+        id: id
+        secret: secret
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        secret:
+          description: Provided during creation and resetting of service account credentials.
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          format: int64
+          type: integer
+      type: object
+    ValidationExceptionData:
+      properties:
+        fields:
+          additionalProperties:
+            type: string
+          type: object
+        error:
+          example: invalid_field
+          type: string
+        error_description:
+          type: string
+      type: object
+    RedHatErrorRepresentation:
+      properties:
+        error:
+          enum:
+          - service_account_limit_exceeded
+          - service_account_not_found
+          - service_account_user_not_found
+          - service_account_access_invalid
+          type: string
+        error_description:
+          type: string
+      type: object
+    ServiceAccountCreateRequestData:
+      example:
+        name: name
+        description: description
+      properties:
+        name:
+          maxLength: 50
+          minLength: 1
+          type: string
+        description:
+          maxLength: 255
+          minLength: 0
+          type: string
+      required:
+      - name
+      type: object
+    ServiceAccountRequestData:
+      example:
+        name: name
+        description: description
+      properties:
+        name:
+          maxLength: 50
+          minLength: 1
+          type: string
+        description:
+          maxLength: 255
+          minLength: 0
+          type: string
+      type: object
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+    authFlow:
+      flows:
+        authorizationCode:
+          authorizationUrl: /auth/realms/redhat-external/protocol/openid-connect/auth
+          scopes:
+            openid: Treat as an OIDC request
+            api.iam.service_accounts: Grants access to the service accounts api
+          tokenUrl: /auth/realms/redhat-external/protocol/openid-connect/token
+      type: oauth2
+    serviceAccounts:
+      flows:
+        clientCredentials:
+          scopes:
+            openid: Treat as an OIDC request
+            api.iam.service_accounts: Grants access to the service accounts api
+          tokenUrl: /auth/realms/redhat-external/protocol/openid-connect/token
+      type: oauth2

@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
+	"sa-api-keycloak/cmd/flags"
 	"sa-api-keycloak/pkg/client"
 	serviceaccountsclient "sa-api-keycloak/serviceaccountmgmt/apiv1/client"
 	"strings"
@@ -32,6 +32,8 @@ const (
 	username   = "username"
 )
 
+var JWKURL, REALM string
+
 type ServiceAccountService interface {
 	GetServiceAccounts(w http.ResponseWriter, r *http.Request)
 	GetServiceAccount(w http.ResponseWriter, r *http.Request)
@@ -44,8 +46,8 @@ type serviceAccountAPIServer struct {
 	kcClient client.Client
 }
 
-func NewServiceAccountAPIServer(baseurl string) ServiceAccountService {
-	kc := client.NewClient(baseurl, true)
+func NewServiceAccountAPIServer(baseurl string, realm string, debug bool, clientId string, clientSecret string) ServiceAccountService {
+	kc := client.NewClient(baseurl, realm, debug, clientId, clientSecret)
 	return &serviceAccountAPIServer{
 		kcClient: kc,
 	}
@@ -266,24 +268,32 @@ func (kc serviceAccountAPIServer) ResetServiceAccountSecret(w http.ResponseWrite
 	}
 	serviceAccountResponse(w, respSa, err)
 }
-
-var rootCmd = &cobra.Command{
-	Use:   "service-account-api",
-	Short: "service-account-api",
-	Long:  `service-account-api`,
-	Run:   Serve,
-}
-
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func NewServeCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Serve the service-account-api",
+		Long:  "Serve the service-account-api",
+		Run:   Serve,
 	}
+	cmd.Flags().String("realm", "", "realm")
+	cmd.Flags().String("keycloak_host", "", "keycloak host:port")
+	cmd.Flags().String("clientId", "", "clientId")
+	cmd.Flags().String("secret", "", "secret")
+	cmd.Flags().Bool("debug", true, "debug")
+	return cmd
 }
 
 func Serve(cmd *cobra.Command, args []string) {
+	realm := flags.MustGetString("realm", cmd.Flags())
+	keycloakHost := flags.MustGetString("keycloak_host", cmd.Flags())
+	clientId := flags.MustGetString("clientId", cmd.Flags())
+	secret := flags.MustGetString("secret", cmd.Flags())
+	debug := flags.MustGetBool("debug", cmd.Flags())
+
+	JWKURL = keycloakHost
+	REALM = realm
 	router := mux.NewRouter()
-	sa := NewServiceAccountAPIServer("http://127.0.0.1:8180")
+	sa := NewServiceAccountAPIServer(keycloakHost, realm, debug, clientId, secret)
 	router.Use(AuthMiddleware)
 	s := router.PathPrefix("/auth/realms/redhat-external/apis/service_accounts/v1").Subrouter()
 	s.HandleFunc("", sa.CreateServiceAccount).Methods(http.MethodPost)
@@ -293,11 +303,11 @@ func Serve(cmd *cobra.Command, args []string) {
 	s.HandleFunc("/{id}/resetSecret", sa.ResetServiceAccountSecret).Methods(http.MethodPost)
 	srv := &http.Server{
 		Handler:      router,
-		Addr:         "127.0.0.1:8000",
+		Addr:         ":8000",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
-	log.Println("service account service started at 127.0.0.1:8000")
+	log.Println("service account service started at port:8000")
 	log.Fatal(srv.ListenAndServe())
 }
 
@@ -305,11 +315,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.RequestURI)
 		token, err := verifyToken(r)
+		log.Println(token)
 		if token != nil {
 			id := mux.Vars(r)["id"]
 			orgid, _ := token.Get("rh-org-id")
 			userid, _ := token.Get("rh-user-id")
 			user, _ := token.Get("preferred_username")
+			log.Println(orgid)
 			ctx := context.WithValue(context.Background(), "rh-org-id", orgid)
 			ctx = context.WithValue(ctx, "rh-user-id", userid)
 			ctx = context.WithValue(ctx, "username", user)
@@ -333,8 +345,9 @@ func verifyToken(request *http.Request) (jwt.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	jwksKeySet, err := jwk.Fetch(request.Context(), jwksURL)
+	jwksKeySet, err := FetchJwk(request)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	token, err := jwt.Parse([]byte(strToken), jwt.WithKeySet(jwksKeySet), jwt.WithValidate(true))
@@ -342,6 +355,11 @@ func verifyToken(request *http.Request) (jwt.Token, error) {
 		return nil, err
 	}
 	return token, nil
+}
+
+func FetchJwk(request *http.Request) (jwk.Set, error) {
+	cert := fmt.Sprintf(`%s/auth/realms/%s/protocol/openid-connect/certs`, JWKURL, REALM)
+	return jwk.Fetch(request.Context(), cert)
 }
 
 func GetAuthHeader(request *http.Request) (string, error) {

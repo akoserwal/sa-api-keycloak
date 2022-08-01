@@ -1,0 +1,22 @@
+version: "3.3"
+services:
+  serviceapi:
+    build: .
+    container_name: 'serviceapi'
+    entrypoint: ["/usr/local/bin/service-account-api","serve","--keycloak_host=http://keycloak:8080", "--realm=redhat-external","--clientId=admin-service-account","--secret=admin-service-account","--debug=true"]
+    depends_on:
+      - keycloak
+    ports:
+      - 8000:8000
+
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:legacy
+    environment:
+      DB_VENDOR: h2
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+    container_name: 'keycloak'
+    ports:
+      - 8180:8080
+

@@ -8,8 +8,8 @@
 
 set -e
 
-docker stop mas-sso
+docker stop keycloak-sso
 
-docker rm mas-sso
+docker rm keycloak-sso
 
-docker network rm mas-sso-network
+docker network rm keycloak-network

@@ -57,16 +57,16 @@ func newClient(baseUrl string, debug bool) gocloak.GoCloak {
 	return client
 }
 
-func NewClient(baseUrl string, debug bool) *kcClient {
+func NewClient(baseUrl string, realm string, debug bool, clientId string, clientSecret string) *kcClient {
 	client := gocloak.NewClient(baseUrl)
 	client.RestyClient().SetDebug(debug)
 	client.RestyClient().SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 	return &kcClient{
 		kcClient:     client,
 		ctx:          context.Background(),
-		realm:        "redhat-external",
-		clientId:     "admin-service-account",
-		clientSecret: "admin-service-account",
+		realm:        realm,
+		clientId:     clientId,
+		clientSecret: clientSecret,
 	}
 }
 
